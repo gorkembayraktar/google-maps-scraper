@@ -1,0 +1,43 @@
+{
+    "name": "google-maps-bot",
+    "version": "1.0.0",
+    "description": "Google Maps üzerinden işletme bilgilerini otomatik toplayan bir araç",
+    "author": "Görkem Çetin",
+    "license": "MIT",
+    "main": "index.js",
+    "bin": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "node index.js --location=istanbul --keyword=çiçekçi --limit=3 --skipPrompts=true",
+        "build": "pkg . --target node18-win-x64 --output dist/google-maps-bot.exe --public --public-packages=* --no-bytecode --compress Brotli"
+    },
+    "pkg": {
+        "assets": [
+            "src/**/*",
+            "node_modules/**/*"
+        ],
+        "outputPath": "dist"
+    },
+    "dependencies": {
+        "figlet": "^1.8.0",
+        "inquirer": "^8.2.6",
+        "puppeteer": "^24.2.1",
+        "puppeteer-core": "^24.2.1",
+        "xlsx": "^0.18.5",
+        "yargs": "^17.7.2"
+    },
+    "devDependencies": {
+        "pkg": "^5.8.1"
+    },
+    "keywords": [
+        "google-maps",
+        "scraper",
+        "business-info",
+        "automation",
+        "bot"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/grkm/google-maps-bot"
+    }
+}
