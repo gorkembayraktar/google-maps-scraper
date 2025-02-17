@@ -38,8 +38,8 @@ Bu bot, Google Maps üzerinden işletme bilgilerini otomatik olarak toplayan bir
 2. [Google Chrome'u indirin ve kurun](https://www.google.com/chrome/) (Eğer yüklü değilse)
 3. Bu projeyi bilgisayarınıza indirin:
    ```bash
-   git clone https://github.com/grkm/google-maps-bot.git
-   cd google-maps-bot
+   git clone https://github.com/grkm/google-maps-scraper.git
+   cd google-maps-scraper
    npm install
    ```
 
