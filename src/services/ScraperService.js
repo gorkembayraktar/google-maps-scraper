@@ -5,11 +5,17 @@ const config = require('../config/config');
 const Business = require('../models/Business');
 const checkChromeInstallation = require('../utils/browserCheck');
 
+if(process.env.IS_DEMO == undefined) {
+    process.env.IS_DEMO = true;
+}
+
 class ScraperService {
     constructor() {
         this.browser = null;
         this.page = null;
         this.isClosing = false;
+        this.isDemo = process.env.IS_DEMO == 'true' || process.env.IS_DEMO == true;
+        this.demoLimit = 5; // Demo modunda maksimum işletme sayısı
         this.setupProcessHandlers();
     }
 
@@ -419,6 +425,12 @@ class ScraperService {
     }
 
     async getBusinesses(limit, minRating = 0) {
+        // Demo modu kontrolü
+        if (this.isDemo) {
+            console.log('\x1b[33m%s\x1b[0m', '⚠️ Demo modu aktif. Maksimum 5 işletme bilgisi toplanabilir.');
+            limit = Math.min(limit, this.demoLimit);
+        }
+
         const businesses = [];
         const processedNames = new Set();
         let loadedCount = 0;
@@ -433,6 +445,12 @@ class ScraperService {
 
             // İşletmeleri işle
             for (let i = 0; i < totalFound && businesses.length < limit; i++) {
+                // Demo modu kontrolü
+                if (this.isDemo && businesses.length >= this.demoLimit) {
+                    console.log('\x1b[33m%s\x1b[0m', '⚠️ Demo modu limitine ulaşıldı. Daha fazla işletme bilgisi toplanamaz.');
+                    break;
+                }
+
                 try {
                     // Ana listeye dönüldüğünden emin ol
                     await this.page.waitForSelector('div.Nv2PK', { timeout: 30000 });

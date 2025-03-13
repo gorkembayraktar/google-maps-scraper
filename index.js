@@ -6,6 +6,12 @@ const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
 
+
+
+if(!process.env.IS_DEMO) {
+    process.env.IS_DEMO = true;
+}
+
 async function waitForEnter() {
     const rl = readline.createInterface({
         input: process.stdin,
@@ -24,7 +30,7 @@ async function waitForEnter() {
 async function main() {
     try {
         // Başlık göster
-        console.log(await showTitle('Google Maps'));
+        console.log(await showTitle( process.env.IS_DEMO === 'true' ? 'Google Maps Demo' : 'Google Maps'));
         // Kullanıcı girdilerini al
         const userInput = await inputService.getUserInput();
 

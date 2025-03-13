@@ -8,8 +8,11 @@
     "bin": "index.js",
     "scripts": {
         "start": "node index.js",
+        "start:demo": "cross-env IS_DEMO=true node index.js",
         "dev": "node index.js --location=istanbul --keyword=çiçekçi --limit=3 --skipPrompts=true",
-        "build": "pkg . --target node18-win-x64 --output dist/google-maps-bot.exe --public --public-packages=* --no-bytecode --compress Brotli"
+        "dev:demo": "cross-env IS_DEMO=true node index.js --location=istanbul --keyword=çiçekçi --limit=3 --skipPrompts=true",
+        "build": "pkg . --target node18-win-x64 --output dist/google-maps-bot.exe --public --public-packages=* --no-bytecode --compress Brotli",
+        "build:demo": "pkg . --target node18-win-x64 --define 'global.IS_DEMO=true' --output dist/google-maps-bot-demo.exe --public --public-packages=* --no-bytecode --compress Brotli "
     },
     "pkg": {
         "assets": [
@@ -28,7 +31,9 @@
         "yargs": "^17.7.2"
     },
     "devDependencies": {
-        "pkg": "^5.8.1"
+        "cross-env": "^7.0.3",
+        "pkg": "^5.8.1",
+        "replace-in-file": "^8.3.0"
     },
     "keywords": [
         "google-maps",
