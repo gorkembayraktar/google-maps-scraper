@@ -130,6 +130,18 @@ class ScraperService {
         const maxNoChange = 3;
         let currentCount = 0;
 
+        // Eğer zaten yeterli sayıda işletme varsa, scroll yapmaya gerek yok
+        currentCount = await this.page.evaluate(() => {
+            return document.querySelectorAll('div.Nv2PK').length;
+        });
+
+        if (currentCount >= limit + 2) {
+            if(process.env?.NODE_ENV === 'dev'){
+                console.log(`Zaten yeterli sayıda işletme var (${currentCount}), scroll işlemi atlanıyor.`);
+            }
+            return currentCount;
+        }
+
         while (noChangeCount < maxNoChange) {
             previousHeight = currentHeight;
 
@@ -143,7 +155,7 @@ class ScraperService {
             }
 
             // Eğer yeterli sayıda işletme bulunduysa scroll'u durdur
-            if (currentCount >= limit + 2) { // Biraz fazladan işletme yükle
+            if (currentCount >= limit + 2) {
                 if(process.env?.NODE_ENV === 'dev'){
                     console.log(`Hedeflenen işletme sayısına ulaşıldı (${limit}), scroll işlemi durduruluyor.`);
                 }
@@ -159,7 +171,7 @@ class ScraperService {
             });
 
             // Yeni sonuçların yüklenmesi için bekle
-            await this.wait(1000); // 2000'den 1000'e düşürdüm
+            await this.wait(1000);
 
             // Yeni yüksekliği kontrol et
             currentHeight = await this.page.evaluate(() => {
@@ -345,6 +357,19 @@ class ScraperService {
         }
     }
 
+    async waitForPageLoad() {
+        try {
+            // Sayfanın tamamen yüklenmesini bekle
+            await this.page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 });
+            // Sayfanın hazır olmasını bekle
+            await this.page.waitForFunction(() => document.readyState === 'complete', { timeout: 30000 });
+            return true;
+        } catch (error) {
+            console.log('Sayfa yükleme hatası:', error.message);
+            return false;
+        }
+    }
+
     async getBusinesses(limit, minRating = 0) {
         const businesses = [];
         const processedNames = new Set();
@@ -352,186 +377,209 @@ class ScraperService {
         let retryCount = 0;
         const maxRetries = 3;
 
-        while (loadedCount < limit && retryCount < maxRetries) {
-            try {
-                // Scroll ve yeni sonuçları yükle
-                const totalFound = await this.scrollAndWaitForResults(limit);
-                console.log(`Toplam ${totalFound} işletme bulundu, ${limit} tanesi işlenecek.`);
-                let counter = 1;
-                // İşletmeleri işle
-                for (let i = 0; i < totalFound && businesses.length < limit; i++) {
-                    try {
-                        // Ana listeye dönüldüğünden emin ol
-                        await this.page.waitForSelector('div.Nv2PK', { timeout: 5000 });
-                        await this.wait(1000);
+        try {
+            // İlk scroll işlemi
+            const totalFound = await this.scrollAndWaitForResults(limit);
+            console.log(`Toplam ${totalFound} işletme bulundu, ${limit} tanesi işlenecek.`);
+            let counter = 1;
 
-                        // Her seferinde güncel işletme listesini al
-                        const currentBusiness = await this.page.evaluate((index) => {
-                            const items = document.querySelectorAll('div.Nv2PK');
-                            const item = items[index];
-                            if (!item) return null;
+            // İşletmeleri işle
+            for (let i = 0; i < totalFound && businesses.length < limit; i++) {
+                try {
+                    // Ana listeye dönüldüğünden emin ol
+                    await this.page.waitForSelector('div.Nv2PK', { timeout: 30000 });
+                    await this.wait(2000); // Bekleme süresini artırdık
 
-                            return {
-                                name: item.querySelector('.qBF1Pd')?.textContent?.trim() || '',
-                                rating: item.querySelector('.MW4etd')?.textContent?.trim() || '',
-                                reviewCount: item.querySelector('.UY7F9')?.textContent?.trim().replace(/[()]/g, '') || ''
-                            };
-                        }, i);
+                    // Her seferinde güncel işletme listesini al
+                    const currentBusiness = await this.page.evaluate((index) => {
+                        const items = document.querySelectorAll('div.Nv2PK');
+                        const item = items[index];
+                        if (!item) return null;
 
-                        if (!currentBusiness || !currentBusiness.name) {
-                            console.log(`${i + 1}. işletme için bilgi bulunamadı, sayfayı yenilemeyi deniyorum...`);
-                            await this.page.reload();
-                            await this.page.waitForSelector('div.Nv2PK', { timeout: 10000 });
-                            await this.scrollAndWaitForResults(limit);
-                            i--;
-                            continue;
-                        }
+                        return {
+                            name: item.querySelector('.qBF1Pd')?.textContent?.trim() || '',
+                            rating: item.querySelector('.MW4etd')?.textContent?.trim() || '',
+                            reviewCount: item.querySelector('.UY7F9')?.textContent?.trim().replace(/[()]/g, '') || ''
+                        };
+                    }, i);
 
-                        // İşletme daha önce işlendiyse atla
-                        if (processedNames.has(currentBusiness.name)) {
-                            if(process.env?.NODE_ENV === 'dev'){
-                                console.log(`${currentBusiness.name} daha önce işlenmiş, atlıyorum...`);
-                            }
-                            continue;
-                        }
+                    if (!currentBusiness || !currentBusiness.name) {
+                        console.log(`${i + 1}. işletme için bilgi bulunamadı, sayfayı yenilemeyi deniyorum...`);
+                        await this.page.reload();
+                        await this.waitForPageLoad();
+                        await this.page.waitForSelector('div.Nv2PK', { timeout: 30000 });
+                        await this.scrollAndWaitForResults(limit);
+                        i--;
+                        continue;
+                    }
 
-                        const business = new Business();
-                        business.name = currentBusiness.name;
-                        business.rating = currentBusiness.rating;
-                        business.reviewCount = currentBusiness.reviewCount;
-                        if (process.env?.NODE_ENV === 'dev') {
-                            console.log(`İşleniyor: ${business.name}`);
-                        }else{
-                            console.log(`İşleniyor: ${business.name}`);
-                        }
-
-                        // Rating kontrolü
-                        if (business.rating && parseFloat(business.rating) < minRating) {
-                            continue;
-                        }
-
-                        try {
-                            // İşletme kartını seç
-                            const businessCards = await this.page.$$('div.Nv2PK');
-                            const card = businessCards[i];
-                            
-                            if (!card) {
-                                throw new Error('İşletme kartı bulunamadı');
-                            }
-
-                            // Kartı görünür yap
-                            await this.page.evaluate((index) => {
-                                const items = document.querySelectorAll('div.Nv2PK');
-                                if (items[index]) {
-                                    items[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }
-                            }, i);
-
-                            // Kısa bir bekleme
-                            await this.wait(1000);
-
-                            // URL'yi kaydet
-                            const currentUrl = await this.page.url();
-
-                            // Karta tıkla
-                            await card.click();
-                            if (config.debug) console.log('İşletme kartına tıklandı');
-
-                            // Detay panelinin yüklenmesini bekle
-                            await this.page.waitForSelector('.m6QErb[role="main"]', { timeout: 5000 });
-                            if (config.debug) console.log('Detay paneli yüklendi');
-
-                            // Detay butonlarının yüklenmesini bekle
-                            await this.page.waitForSelector('button.CsEnBe', { timeout: 5000 });
-                            if (config.debug) console.log('Detay butonları yüklendi');
-
-                            // Detayların yüklenmesi için bekle
-                            await this.wait(2000);
-
-                            // Detay bilgilerini çek
-                            const details = await this.getBusinessDetails();
-                            
-                            // Detayları business nesnesine aktar
-                            business.address = details.address;
-                            business.phone = details.phone;
-                            business.website = details.website;
-                            business.type = details.type;
-                            business.description = details.description;
-                            business.workingHours = details.workingHours;
-                            business.photoUrl = details.photoUrl;
-                            business.features = details.features;
-                            if (details.coordinates) {
-                                const [lat, lng] = details.coordinates.split(',');
-                                business.coordinates = { latitude: lat, longitude: lng };
-                            }
-
-                            businesses.push(business);
-                            processedNames.add(business.name);
-                            loadedCount++;
-
-                            if(process.env?.NODE_ENV !== 'dev'){
-                                // yeşil renkli yazdır
-                                console.log(`\x1b[32m%s\x1b[0m`, `✅ ${counter}.${business.name} - Puan: ${business.rating}  - Yorum: ${business.reviewCount} - Telefon: ${business.phone} - Website: ${business.website} - Adres: ${business.address} `);
-                         
-                                counter++;
-                            }
-
-
-                            // Eğer limit sayısına ulaştıysak döngüyü sonlandır
-                            if (businesses.length >= limit) {
-                                console.log(`Hedef sayıya (${limit}) ulaşıldı.`);
-                                break;
-                            }
-
-                            // Liste görünümüne dön
-                            if (config.debug) console.log('Ana listeye dönülüyor...');
-                            await this.page.goto(currentUrl);
-                            await this.page.waitForSelector('div.Nv2PK', { timeout: 10000 });
-                            if (config.debug) console.log('Ana listeye dönüş başarılı');
-
-                            // Scroll pozisyonunu koru
-                            await this.scrollAndWaitForResults(limit);
-
-                        } catch (clickError) {
-                            console.error(`İşletme detayları alınırken hata: ${clickError.message}`);
-                            try {
-                                console.log('Kurtarma işlemi başlatılıyor...');
-                                await this.page.goto(currentUrl);
-                                await this.page.waitForSelector('div.Nv2PK', { timeout: 10000 });
-                                await this.scrollAndWaitForResults(limit);
-                                i--;
-                            } catch (error) {
-                                console.error('Kurtarma işlemi başarısız:', error.message);
-                            }
-                            continue;
-                        }
-
-                    } catch (error) {
-                        console.error(`İşletme işlenirken hata: ${error.message}`);
-                        try {
-                            await this.page.reload();
-                            await this.page.waitForSelector('div.Nv2PK', { timeout: 10000 });
-                            await this.scrollAndWaitForResults(limit);
-                            i--;
-                        } catch (reloadError) {
-                            console.error('Sayfa yenileme başarısız:', reloadError.message);
+                    // İşletme daha önce işlendiyse atla
+                    if (processedNames.has(currentBusiness.name)) {
+                        if(process.env?.NODE_ENV === 'dev'){
+                            console.log(`${currentBusiness.name} daha önce işlenmiş, atlıyorum...`);
                         }
                         continue;
                     }
-                }
 
-                if (businesses.length >= limit) {
-                    break;
-                }
+                    const business = new Business();
+                    business.name = currentBusiness.name;
+                    business.rating = currentBusiness.rating;
+                    business.reviewCount = currentBusiness.reviewCount;
+                    if (process.env?.NODE_ENV === 'dev') {
+                        console.log(`İşleniyor: ${business.name}`);
+                    }else{
+                        console.log(`İşleniyor: ${business.name}`);
+                    }
 
-                if (businesses.length === 0) {
-                    retryCount++;
-                }
+                    // Rating kontrolü
+                    if (business.rating && parseFloat(business.rating) < minRating) {
+                        continue;
+                    }
 
-            } catch (error) {
-                console.error(`İşletme listesi işlenirken hata: ${error.message}`);
-                retryCount++;
+                    try {
+                        // İşletme kartını seç
+                        const businessCards = await this.page.$$('div.Nv2PK');
+                        const card = businessCards[i];
+                        
+                        if (!card) {
+                            throw new Error('İşletme kartı bulunamadı');
+                        }
+
+                        // Kartı görünür yap
+                        await this.page.evaluate((index) => {
+                            const items = document.querySelectorAll('div.Nv2PK');
+                            if (items[index]) {
+                                items[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                        }, i);
+
+                        // Kısa bir bekleme
+                        await this.wait(2000);
+
+                        // Karta tıkla
+                        await card.click();
+                        if (config.debug) console.log('İşletme kartına tıklandı');
+
+                        // Detay panelinin yüklenmesini bekle
+                        await this.page.waitForSelector('.m6QErb[role="main"]', { timeout: 30000 });
+                        if (config.debug) console.log('Detay paneli yüklendi');
+
+                        // Detay butonlarının yüklenmesini bekle
+                        await this.page.waitForSelector('button.CsEnBe', { timeout: 30000 });
+                        if (config.debug) console.log('Detay butonları yüklendi');
+
+                        // Detayların yüklenmesi için bekle
+                        await this.wait(3000);
+
+                        // Detay bilgilerini çek
+                        const details = await this.getBusinessDetails();
+                        
+                        // Detayları business nesnesine aktar
+                        business.address = details.address;
+                        business.phone = details.phone;
+                        business.website = details.website;
+                        business.type = details.type;
+                        business.description = details.description;
+                        business.workingHours = details.workingHours;
+                        business.photoUrl = details.photoUrl;
+                        business.features = details.features;
+                        if (details.coordinates) {
+                            const [lat, lng] = details.coordinates.split(',');
+                            business.coordinates = { latitude: lat, longitude: lng };
+                        }
+
+                        businesses.push(business);
+                        processedNames.add(business.name);
+                        loadedCount++;
+
+                        if(process.env?.NODE_ENV !== 'dev'){
+                            // yeşil renkli yazdır
+                            console.log(`\x1b[32m%s\x1b[0m`, `✅ ${counter}.${business.name} - Puan: ${business.rating}  - Yorum: ${business.reviewCount} - Telefon: ${business.phone} - Website: ${business.website} - Adres: ${business.address} `);
+                            counter++;
+                        }
+
+                        // Eğer limit sayısına ulaştıysak döngüyü sonlandır
+                        if (businesses.length >= limit) {
+                            console.log(`Hedef sayıya (${limit}) ulaşıldı.`);
+                            break;
+                        }
+
+                        // Liste görünümüne dön
+                        if (config.debug) console.log('Ana listeye dönülüyor...');
+                        
+                        // Farklı geri butonu seçicilerini dene
+                        const backButtonSelectors = [
+                            'button.hYBOP[jsaction*="omnibox.back"]',
+                            'button[jsaction*="omnibox.back"]',
+                            'button[aria-label="Geri"]',
+                            'button.hYBOP.FeqX4d[jsaction*="omnibox.back"]'
+                        ];
+
+                        let backButton = null;
+                        for (const selector of backButtonSelectors) {
+                            backButton = await this.page.$(selector);
+                            if (backButton) {
+                                if(process.env?.NODE_ENV === 'dev'){
+                                    console.log(`Geri butonu bulundu: ${selector}`);
+                                }
+                                break;
+                            }
+                        }
+
+                        if (backButton) {
+                            await backButton.click();
+                            await this.waitForPageLoad();
+                            await this.page.waitForSelector('div.Nv2PK', { timeout: 30000 });
+                            if (config.debug) console.log('Ana listeye dönüş başarılı');
+                        } else {
+                            console.log('Geri butonu bulunamadı, alternatif yöntem kullanılıyor...');
+                            await this.page.goBack();
+                            await this.waitForPageLoad();
+                            await this.page.waitForSelector('div.Nv2PK', { timeout: 30000 });
+                        }
+
+                    } catch (clickError) {
+                        console.error(`İşletme detayları alınırken hata: ${clickError.message}`);
+                        try {
+                            console.log('Kurtarma işlemi başlatılıyor...');
+                            // Önce sayfayı yenilemeyi dene
+                            await this.page.reload();
+                            await this.waitForPageLoad();
+                            await this.page.waitForSelector('div.Nv2PK', { timeout: 30000 });
+                            await this.scrollAndWaitForResults(limit);
+                            i--;
+                        } catch (error) {
+                            console.error('Kurtarma işlemi başarısız:', error.message);
+                            // Son çare olarak yeni bir arama yap
+                            await this.searchBusinesses(userInput.location, userInput.keyword);
+                            await this.scrollAndWaitForResults(limit);
+                            i = 0; // Baştan başla
+                        }
+                        continue;
+                    }
+
+                } catch (error) {
+                    console.error(`İşletme işlenirken hata: ${error.message}`);
+                    try {
+                        await this.page.reload();
+                        await this.waitForPageLoad();
+                        await this.page.waitForSelector('div.Nv2PK', { timeout: 30000 });
+                        await this.scrollAndWaitForResults(limit);
+                        i--;
+                    } catch (reloadError) {
+                        console.error('Sayfa yenileme başarısız:', reloadError.message);
+                        // Son çare olarak yeni bir arama yap
+                        await this.searchBusinesses(userInput.location, userInput.keyword);
+                        await this.scrollAndWaitForResults(limit);
+                        i = 0; // Baştan başla
+                    }
+                    continue;
+                }
             }
+
+        } catch (error) {
+            console.error(`İşletme listesi işlenirken hata: ${error.message}`);
+            retryCount++;
         }
 
         return businesses;

@@ -2,13 +2,13 @@
     "name": "google-maps-bot",
     "version": "1.0.0",
     "description": "Google Maps üzerinden işletme bilgilerini otomatik toplayan bir araç",
-    "author": "Görkem Çetin",
+    "author": "Görkem",
     "license": "MIT",
     "main": "index.js",
     "bin": "index.js",
     "scripts": {
         "start": "node index.js",
-        "dev": "node index.js --location=istanbul --keyword=çiçekçi --limit=3 --skipPrompts=true",
+        "dev": "node index.js --location=istanbul --keyword=çiçekçi --limit=21 --skipPrompts=true",
         "build": "pkg . --target node18-win-x64 --output dist/google-maps-bot.exe --public --public-packages=* --no-bytecode --compress Brotli"
     },
     "pkg": {
