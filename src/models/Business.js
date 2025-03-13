@@ -4,6 +4,7 @@ class Business {
         this.address = '';
         this.phone = '';
         this.website = '';
+        this.email = '';
         this.description = '';
         this.workingHours = '';
         this.photoUrl = '';
@@ -38,6 +39,7 @@ class Business {
             'Adres': this.address,
             'Telefon': this.phone,
             'Website': this.website,
+            'Email': this.email,
             'İşletme Türü': this.type,
             'Puan': this.rating,
             'Yorum Sayısı': this.reviewCount,

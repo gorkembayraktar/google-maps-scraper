@@ -1,5 +1,6 @@
 const puppeteer = require('puppeteer');
 const puppeteerCore = require('puppeteer-core');
+const axios = require('axios');
 const config = require('../config/config');
 const Business = require('../models/Business');
 const checkChromeInstallation = require('../utils/browserCheck');
@@ -370,6 +371,53 @@ class ScraperService {
         }
     }
 
+    async extractEmailFromWebsite(website) {
+        try {
+            if (!website) return '';
+            
+            // Website URL'sini düzenle
+            let url = website;
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+            }
+
+            // Website'den HTML'i çek
+            const response = await axios.get(url, {
+                timeout: 10000,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+            });
+
+            const html = response.data;
+
+            // Email regex pattern
+            const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+            const emails = html.match(emailPattern);
+
+            if (emails && emails.length > 0) {
+                // Tekrar eden emailleri filtrele
+                const uniqueEmails = [...new Set(emails)];
+                // Spam emailleri filtrele
+                const filteredEmails = uniqueEmails.filter(email => 
+                    !email.includes('example.com') && 
+                    !email.includes('domain.com') &&
+                    !email.includes('site.com')
+                );
+
+                if (filteredEmails.length > 0) {
+                    console.log(`Website'den email bulundu: ${filteredEmails[0]}`);
+                    return filteredEmails[0];
+                }
+            }
+
+            return '';
+        } catch (error) {
+            console.log(`Website'den email çekme hatası: ${error.message}`);
+            return '';
+        }
+    }
+
     async getBusinesses(limit, minRating = 0) {
         const businesses = [];
         const processedNames = new Set();
@@ -483,6 +531,12 @@ class ScraperService {
                         business.workingHours = details.workingHours;
                         business.photoUrl = details.photoUrl;
                         business.features = details.features;
+
+                        // Website'den email çek
+                        if (business.website) {
+                            business.email = await this.extractEmailFromWebsite(business.website);
+                        }
+
                         if (details.coordinates) {
                             const [lat, lng] = details.coordinates.split(',');
                             business.coordinates = { latitude: lat, longitude: lng };
@@ -494,7 +548,7 @@ class ScraperService {
 
                         if(process.env?.NODE_ENV !== 'dev'){
                             // yeşil renkli yazdır
-                            console.log(`\x1b[32m%s\x1b[0m`, `✅ ${counter}.${business.name} - Puan: ${business.rating}  - Yorum: ${business.reviewCount} - Telefon: ${business.phone} - Website: ${business.website} - Adres: ${business.address} `);
+                            console.log(`\x1b[32m%s\x1b[0m`, `✅ ${counter}.${business.name} - Puan: ${business.rating}  - Yorum: ${business.reviewCount} - Telefon: ${business.phone} - Website: ${business.website} - Email: ${business.email} - Adres: ${business.address} `);
                             counter++;
                         }
 

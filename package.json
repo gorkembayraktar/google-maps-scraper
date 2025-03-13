@@ -8,7 +8,7 @@
     "bin": "index.js",
     "scripts": {
         "start": "node index.js",
-        "dev": "node index.js --location=istanbul --keyword=çiçekçi --limit=21 --skipPrompts=true",
+        "dev": "node index.js --location=istanbul --keyword=çiçekçi --limit=3 --skipPrompts=true",
         "build": "pkg . --target node18-win-x64 --output dist/google-maps-bot.exe --public --public-packages=* --no-bytecode --compress Brotli"
     },
     "pkg": {
@@ -19,6 +19,7 @@
         "outputPath": "dist"
     },
     "dependencies": {
+        "axios": "^1.6.7",
         "figlet": "^1.8.0",
         "inquirer": "^8.2.6",
         "puppeteer": "^24.2.1",

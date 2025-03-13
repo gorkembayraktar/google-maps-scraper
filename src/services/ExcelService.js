@@ -129,6 +129,7 @@ Terminal=false`;
 Adres: ${business.address}
 Telefon: ${business.phone}
 Website: ${business.website}
+Email: ${business.email}
 İşletme Türü: ${business.type}
 Puan: ${business.rating}
 Yorum Sayısı: ${business.reviewCount}
